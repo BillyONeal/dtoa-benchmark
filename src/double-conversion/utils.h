@@ -54,6 +54,7 @@
 // disabled.)
 // On Linux,x86 89255e-22 != Div_double(89255.0/1e22)
 #if defined(_M_X64) || defined(__x86_64__) || \
+    defined(_M_ARM64) || defined(__aarch64__) || \
     defined(__ARMEL__) || defined(__avr32__) || \
     defined(__hppa__) || defined(__ia64__) || \
     defined(__mips__) || \

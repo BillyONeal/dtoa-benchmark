@@ -1,4 +1,3 @@
-#define FMT_HEADER_ONLY 1
 #include "benchmark.h"
 #include "fmt/compile.h"
 

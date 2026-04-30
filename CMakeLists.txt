@@ -11,6 +11,10 @@ endif ()
 
 project(DTOA_BENCHMARK C CXX)
 
+if (MSVC)
+  add_compile_options(/utf-8)
+endif ()
+
 # Fetch Google Benchmark.
 include(FetchContent)
 set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
@@ -23,8 +27,7 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(googlebenchmark)
 
-add_executable(
-  dtoa-benchmark
+set(DTOA_SOURCES
   src/benchmark.cc
 
   # Tests:
@@ -67,7 +70,14 @@ add_executable(
   src/zmij/zmij.cc # 30 Apr 2026: d07ed49
 )
 
-target_compile_options(dtoa-benchmark PUBLIC $<$<CXX_COMPILER_ID:MSVC>:/utf-8>)
+if (MSVC AND CMAKE_SYSTEM_PROCESSOR STREQUAL "ARM64")
+  list(REMOVE_ITEM DTOA_SOURCES src/asteria/ascii_numput.cpp)
+  list(REMOVE_ITEM DTOA_SOURCES src/uscale/uscale.c)
+  list(REMOVE_ITEM DTOA_SOURCES src/uscale-test.cc)
+endif ()
+
+add_executable(dtoa-benchmark ${DTOA_SOURCES})
+
 target_compile_features(dtoa-benchmark PRIVATE cxx_std_20)
 target_include_directories(dtoa-benchmark PRIVATE src src/fmt/include)
 target_link_libraries(dtoa-benchmark PRIVATE benchmark::benchmark)
@@ -77,7 +87,7 @@ if (APPLE)
     COMMAND sysctl -n machdep.cpu.brand_string
     OUTPUT_VARIABLE CPU_NAME
   )
-elseif(LINUX)
+elseif (LINUX)
   execute_process(
     COMMAND lscpu
     OUTPUT_VARIABLE CPU_NAME
@@ -126,21 +136,23 @@ add_benchmark_target(run-benchmark-fast --benchmark_min_time=0.5s)
 
 # Cache pressure measurement tool -- shares all dtoa implementations
 # but uses a different main() that measures L1 cache pollution.
-get_target_property(DTOA_SOURCES dtoa-benchmark SOURCES)
-list(REMOVE_ITEM DTOA_SOURCES src/benchmark.cc)
+set(CACHE_TOOL_SOURCES ${DTOA_SOURCES})
+list(REMOVE_ITEM CACHE_TOOL_SOURCES src/benchmark.cc)
 add_executable(
   cache-pressure
   src/cache-pressure.cc
-  ${DTOA_SOURCES}
+  ${CACHE_TOOL_SOURCES}
 )
 target_compile_features(cache-pressure PRIVATE cxx_std_20)
 target_include_directories(cache-pressure PRIVATE src src/fmt/include)
 
 # L1 cache contention test -- measures dtoa degradation under L1 pressure.
-add_executable(
-  cache-contention
-  src/cache-contention.cc
-  ${DTOA_SOURCES}
-)
-target_compile_features(cache-contention PRIVATE cxx_std_20)
-target_include_directories(cache-contention PRIVATE src src/fmt/include)
+if (NOT WIN32)
+  add_executable(
+    cache-contention
+    src/cache-contention.cc
+    ${CACHE_TOOL_SOURCES}
+  )
+  target_compile_features(cache-contention PRIVATE cxx_std_20)
+  target_include_directories(cache-contention PRIVATE src src/fmt/include)
+endif ()

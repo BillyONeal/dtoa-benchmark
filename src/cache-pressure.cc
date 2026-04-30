@@ -46,6 +46,8 @@ alignas(64) static volatile uint64_t working_set[WORKING_SET_INTS];
 // volatile reads. Clang doesn't support optimize(), so use optnone there.
 #ifdef __clang__
 __attribute__((noinline, optnone))
+#elif defined(_MSC_VER)
+__declspec(noinline)
 #else
 __attribute__((noinline, optimize("O1")))
 #endif
@@ -64,8 +66,9 @@ static double measure_reload_ns() {
   volatile uint64_t sink = load_working_set();
   (void)sink;
   auto end = std::chrono::steady_clock::now();
-  return std::chrono::duration_cast<std::chrono::nanoseconds>(end - start)
-      .count();
+  return static_cast<double>(
+      std::chrono::duration_cast<std::chrono::nanoseconds>(end - start)
+      .count());
 }
 
 // Test data: 64 random doubles (fits in one 512-byte region).
@@ -88,7 +91,12 @@ static void init_test_values() {
 }
 
 // Call dtoa exactly N times, cycling through test values.
-static void __attribute__((noinline))
+static void
+#ifdef _MSC_VER
+__declspec(noinline)
+#else
+__attribute__((noinline))
+#endif
 call_dtoa_n(dtoa_fun dtoa, int n) {
   char buffer[256];
   for (int i = 0; i < n; i++) {
